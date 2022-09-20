@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { CircularProgress, Box } from '@mui/material';
@@ -13,29 +12,29 @@ function AnimationFrame(props: Props) {
   const { t } = useTranslation('AnimationFrame');
   const [loading, setLoading] = React.useState<boolean>(true);
   const [visible, setVisible] = React.useState<boolean>(false);
-  const observerRef = React.useRef<IntersectionObserver>();
-  const wrapperRef = React.useRef<HTMLDivElement>();
-  const videoRef = React.createRef();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const { name, playback } = props;
-  var videoElement: HTMLVideoElement;
+  var observer: IntersectionObserver;
   var animationRequest: number;
 
   useEffect(() => {
-    observerRef.current = new IntersectionObserver(intersectionObserver);
-    wrapperRef.current && observerRef.current.observe(wrapperRef.current);
+    observer = new IntersectionObserver(intersectionObserver);
+    wrapperRef.current && observer.observe(wrapperRef.current);
   }, []);
 
   useEffect(() => {
-    if (visible && videoElement == null) {
-      videoElement = videoRef.current;
-      videoElement.addEventListener('loadedmetadata', function () {
+    if (visible && videoRef.current) {
+      videoRef.current.addEventListener('loadedmetadata', function () {
         var virtualHeight = Math.floor(this.duration) * playback + 'px';
-        wrapperRef.current.style.height = virtualHeight;
+        if (wrapperRef.current != null) {
+          wrapperRef.current.style.height = virtualHeight;
+          animationRequest = requestAnimationFrame(scrollPlay);
+          setLoading(false);
+        }
       });
-      videoElement.addEventListener('canplaythrough', function () {
-        setLoading(false);
-        animationRequest = requestAnimationFrame(scrollPlay);
-      });
+    } else {
+      cancelAnimationFrame(animationRequest);
     }
   }, [visible]);
 
@@ -54,13 +53,20 @@ function AnimationFrame(props: Props) {
   };
 
   function scrollPlay() {
-    var frame = window.scrollY / playback;
-    videoElement.currentTime = frame;
-    animationRequest = requestAnimationFrame(scrollPlay);
+    if (wrapperRef.current && videoRef.current) {
+      const distanceFromTop =
+        window.scrollY + wrapperRef.current.getBoundingClientRect().top;
+      const rawScrollPercent =
+        (window.scrollY - distanceFromTop) /
+        (wrapperRef.current.scrollHeight - window.innerHeight);
+      const scrollPercent = Math.min(Math.max(rawScrollPercent, 0), 1);
+      videoRef.current.currentTime = videoRef.current.duration * scrollPercent;
+      animationRequest = requestAnimationFrame(scrollPlay);
+    }
   }
 
   return (
-    <Wrapper ref={wrapperRef} className="animation_wrapper">
+    <Wrapper ref={wrapperRef} className="annimation_wrapper">
       <Content>
         {loading && (
           <Box
@@ -73,10 +79,10 @@ function AnimationFrame(props: Props) {
           </Box>
         )}
         {visible && (
-          <Video ref={videoRef} autobuffer="autobuffer">
+          <Video ref={videoRef} muted>
             <source type="video/mp4" src={'/anim/' + name + '.mp4'} />
-            <source type="video/ogg" src={'/anim/' + name + '.ogg'} />
             <source type="video/webm" src={'/anim/' + name + '.webm'} />
+            <source type="video/ogg" src={'/anim/' + name + '.ogg'} />
             {t('video-format-warning')}
           </Video>
         )}
